@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Garage Pong</title>
+<style>
+:root{--bg:#14110f;--fg:#f4ead8;--ac:#ff8a3d;--pn:rgba(20,17,15,.72);box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#14110f;--fg:#f4ead8;--ac:#ff8a3d;--pn:rgba(20,17,15,.72)}}
+:root[data-theme="dark"]{--bg:#14110f;--fg:#f4ead8;--ac:#ff8a3d;--pn:rgba(20,17,15,.72)}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,"Segoe UI",sans-serif;overflow:hidden;touch-action:none;user-select:none}
+#wrap{position:relative;height:100%;cursor:none}
+canvas{display:block;width:100%;height:100%}
+.hud{position:absolute;left:0;right:0;top:10px;display:flex;justify-content:center;pointer-events:none}
+#sc{background:var(--pn);padding:6px 16px;border-radius:999px;font-weight:700;letter-spacing:.04em;border:1px solid var(--ac)}
+#msg{position:absolute;left:0;right:0;bottom:22%;text-align:center;font-size:clamp(20px,4vw,34px);font-weight:800;color:var(--ac);text-shadow:0 2px 8px #000;pointer-events:none}
+.bar{position:absolute;bottom:10px;left:0;right:0;display:flex;justify-content:center;gap:8px;cursor:default}
+.bar button{background:var(--pn);color:var(--fg);border:1px solid var(--ac);border-radius:999px;padding:7px 16px;font:inherit;font-size:14px;cursor:pointer}
+.bar button.on{background:var(--ac);color:#1b1814;font-weight:700}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div class="hud"><div id="sc">YOU 0 – 0 CPU</div></div>
+  <div id="msg">Move the mouse, click to serve</div>
+  <div class="bar"><button data-d="easy">Easy</button><button data-d="medium" class="on">Medium</button><button data-d="hard">Hard</button></div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(()=>{
+const $=id=>document.getElementById(id),clamp=(a,l,h)=>Math.max(l,Math.min(h,a));
+const TT=.76,HL=1.37,HW=.76,NET=.15,R=.05,G=9.8,PZ=1.75;
+const wrap=$('wrap');
+const ren=new THREE.WebGLRenderer({antialias:true});
+ren.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+wrap.prepend(ren.domElement);
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x1b1814);
+const cam=new THREE.PerspectiveCamera(62,1,.05,50);cam.position.set(0,1.5,3.3);cam.lookAt(0,.8,-.7);
+function resize(){const w=wrap.clientWidth,h=wrap.clientHeight;ren.setSize(w,h,false);cam.aspect=w/h;cam.fov=w/h<1?85:62;cam.updateProjectionMatrix()}
+addEventListener('resize',resize);resize();
+
+// lights
+scene.add(new THREE.AmbientLight(0x7a7064,.75));
+const bulb=new THREE.PointLight(0xffe2a0,1.1,12);bulb.position.set(0,2.4,-.3);scene.add(bulb);
+const door=new THREE.DirectionalLight(0xfff1d6,.55);door.position.set(0,2,6);scene.add(door);
+
+// helpers
+const M=(c,o)=>new THREE.MeshStandardMaterial(Object.assign({color:c,roughness:.85},o||{}));
+function box(w,h,d,c,x,y,z,par){const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),M(c));m.position.set(x,y,z);(par||scene).add(m);return m}
+
+// garage room
+box(7,.1,9,0x57534d,0,-.05,-.5);
+box(7,2.8,.1,0x8c8478,0,1.4,-4);
+box(.1,2.8,9,0x7d766b,-3.5,1.4,-.5);
+box(.1,2.8,9,0x7d766b,3.5,1.4,-.5);
+box(7,.1,9,0x6e685f,0,2.85,-.5);
+const pal=[0xc0392b,0x2980b9,0xf1c40f,0x27ae60,0xe67e22];
+[.7,1.25,1.8].forEach(y=>{
+  box(3.2,.05,.35,0x6b4a2b,0,y,-3.8);
+  for(let i=0;i<6;i++){const c=new THREE.Mesh(new THREE.CylinderGeometry(.07,.07,.16,14),M(pal[(i+Math.round(y*3))%5]));c.position.set(-1.4+i*.55+Math.random()*.15,y+.105,-3.8);scene.add(c)}
+});
+box(.05,1.3,.35,0x6b4a2b,-1.6,.9,-3.8);box(.05,1.3,.35,0x6b4a2b,1.6,.9,-3.8);
+box(.9,.9,2,0x5b4630,3,.45,-2.2);box(1,.06,2.1,0x8a6a45,3,.93,-2.2);box(.4,.2,.25,0xb3342b,3,1.06,-1.8);
+[-1.2,-2].forEach(z=>{const t=new THREE.Mesh(new THREE.TorusGeometry(.33,.025,8,28),M(0x222222));t.rotation.y=Math.PI/2;t.position.set(-3.3,.36,z);scene.add(t)});
+box(.04,.04,.9,0x2d6cdf,-3.3,.62,-1.6);
+const bm=new THREE.Mesh(new THREE.SphereGeometry(.09,16,12),new THREE.MeshBasicMaterial({color:0xfff0b0}));bm.position.set(0,2.45,-.3);scene.add(bm);
+box(.012,.4,.012,0x111111,0,2.65,-.3);
+const cv=document.createElement('canvas');cv.width=512;cv.height=128;const cx=cv.getContext('2d');
+cx.fillStyle='#2a2623';cx.fillRect(0,0,512,128);cx.fillStyle='#ff8a3d';cx.font='bold 72px system-ui,sans-serif';cx.textAlign='center';cx.textBaseline='middle';cx.fillText('GARAGE PONG',256,68);
+const sg=new THREE.Mesh(new THREE.PlaneGeometry(2,.5),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(cv)}));sg.position.set(0,2.4,-3.93);scene.add(sg);
+
+// table + net
+box(1.52,.05,2.74,0x1d5c8c,0,TT-.025,0);
+box(.015,.052,2.74,0xffffff,0,TT-.024,0);
+box(.015,.052,2.74,0xffffff,-.745,TT-.024,0);box(.015,.052,2.74,0xffffff,.745,TT-.024,0);
+[-1,1].forEach(sx=>[-1,1].forEach(sz=>box(.06,TT-.05,.06,0x2b2b2b,sx*.68,(TT-.05)/2,sz*1.2)));
+const net=box(1.62,NET,.008,0xeeeeee,0,TT+NET/2,0);net.material.transparent=true;net.material.opacity=.55;
+box(.03,NET+.03,.03,0x222222,-.8,TT+NET/2,0);box(.03,NET+.03,.03,0x222222,.8,TT+NET/2,0);
+
+// paddles, ball, opponent
+function mkPad(c){const g=new THREE.Group();const h=new THREE.Mesh(new THREE.CylinderGeometry(.17,.17,.025,32),M(c,{roughness:.6}));h.rotation.x=Math.PI/2;g.add(h);box(.04,.17,.03,0xc89a5b,0,-.24,0,g);scene.add(g);return g}
+const padP=mkPad(0xd8372b),padC=mkPad(0x2a2a2a);
+const ballM=new THREE.Mesh(new THREE.SphereGeometry(R,20,16),M(0xffb347,{emissive:0x553311}));scene.add(ballM);
+const blob=new THREE.Mesh(new THREE.CircleGeometry(.07,16),new THREE.MeshBasicMaterial({color:0,transparent:true,opacity:.4}));blob.rotation.x=-Math.PI/2;scene.add(blob);
+const cpuG=new THREE.Group();scene.add(cpuG);cpuG.position.z=-2.5;
+box(.4,.5,.25,0x35476b,0,.25,0,cpuG);box(.5,.9,.3,0x3d7a52,0,.95,0,cpuG);
+const hd=new THREE.Mesh(new THREE.SphereGeometry(.17,16,12),M(0xe0b48f));hd.position.y=1.62;cpuG.add(hd);
+
+// game state
+const DF={easy:{spd:1.9,err:.28,react:.3,ps:4.6,hr:.18},medium:{spd:2.8,err:.14,react:.2,ps:5.6,hr:.21},hard:{spd:4.2,err:.05,react:.1,ps:6.8,hr:.25}};
+let diff='medium',state='serve',server='p',last='p',valid=false,sP=0,sC=0,timer=0;
+const pad={x:0,y:1.1,tx:0,ty:1.1,vx:0,vy:0},cpu={x:0,y:1.1,tx:0,ty:1.1,wait:0,ex:0};
+const ball={p:new THREE.Vector3(),v:new THREE.Vector3()};
+const setMsg=t=>{$('msg').textContent=t};
+const setScore=()=>{$('sc').textContent='YOU '+sP+' – '+sC+' CPU'};
+let ac;function beep(f){try{ac=ac||new(window.AudioContext||window.webkitAudioContext)();const o=ac.createOscillator(),g=ac.createGain();o.type='triangle';o.frequency.value=f;g.gain.value=.08;o.connect(g);g.connect(ac.destination);o.start();g.gain.exponentialRampToValueAtTime(.001,ac.currentTime+.09);o.stop(ac.currentTime+.1)}catch(e){}}
+
+function setupServe(){state='serve';server=Math.floor((sP+sC)/2)%2===0?'p':'c';ball.v.set(0,0,0);last=server;valid=false;timer=1;
+  setMsg(server==='p'?'Click to serve':'CPU serving…')}
+function resetGame(){sP=sC=0;setScore();setupServe()}
+function point(w,why){if(state!=='play')return;w==='p'?sP++:sC++;setScore();beep(w==='p'?700:200);
+  if(sP>=11||sC>=11){state='over';setMsg(sP>sC?'You win! Click to play again':'CPU wins. Click to try again');return}
+  state='point';timer=1.3;setMsg((w==='p'?'Your point':'CPU point')+(why?' – '+why:''))}
+const fault=(who,why)=>point(who==='p'?'c':'p',why);
+
+function hit(w,swing,off){
+  const D=DF[diff],s=w==='p'?-1:1;
+  const spd=w==='p'?Math.min(8.6,4.6+swing*.6):D.ps+Math.random()*1.2;
+  const zt=s*(.6+Math.random()*.55),T=Math.abs(ball.p.z-zt)/spd;
+  let xt=w==='p'?ball.p.x+off*3+clamp(pad.vx,-3,3)*.08:Math.random()*1.1-.55;
+  xt=clamp(xt,-.64,.64);
+  ball.v.set((xt-ball.p.x)/T,(TT+R-ball.p.y+.5*G*T*T)/T,s*spd);
+  last=w;valid=false;beep(w==='p'?520:380);
+  if(w==='p'){cpu.wait=D.react;cpu.ex=(Math.random()*2-1)*D.err*2}else cpu.wait=0;
+}
+function predict(){let x=ball.p.x,y=ball.p.y,z=ball.p.z,vx=ball.v.x,vy=ball.v.y,vz=ball.v.z;
+  for(let i=0;i<400&&z>-PZ;i++){const d=.01;vy-=G*d;x+=vx*d;y+=vy*d;z+=vz*d;
+    if(y-R<=TT&&vy<0&&Math.abs(x)<=HW&&Math.abs(z)<=HL){y=TT+R;vy=-vy*.84}
+    if(y<R)break}
+  return{x,y}}
+
+function step(d){
+  const p=ball.p,v=ball.v,ox=p.x,oy=p.y,oz=p.z,D=DF[diff];
+  v.y-=G*d;p.addScaledVector(v,d);
+  if(v.y<0&&oy-R>=TT-.02&&p.y-R<=TT&&Math.abs(p.x)<=HW&&Math.abs(p.z)<=HL){
+    p.y=TT+R;v.y=-v.y*.84;beep(300);
+    if((p.z>0?'p':'c')===last){fault(last,'bad bounce');return}else valid=true}
+  if((oz>0)!==(p.z>0)){const yy=oy+(p.y-oy)*(oz/(oz-p.z));
+    if(Math.abs(p.x)<HW+.1&&yy-R<TT+NET){fault(last,'net');return}}
+  if(last==='c'&&v.z>0&&oz<PZ&&p.z>=PZ){const t=(PZ-oz)/(p.z-oz),bx=ox+(p.x-ox)*t,by=oy+(p.y-oy)*t;
+    if(Math.hypot(bx-pad.x,by-pad.y)<.3+R){p.set(bx,by,PZ-.01);hit('p',Math.hypot(pad.vx,pad.vy),bx-pad.x)}}
+  if(last==='p'&&v.z<0&&oz>-PZ&&p.z<=-PZ){const t=(oz+PZ)/(oz-p.z),bx=ox+(p.x-ox)*t,by=oy+(p.y-oy)*t;
+    if(Math.hypot(bx-cpu.x,by-cpu.y)<D.hr+R){p.set(bx,by,-PZ+.01);hit('c',0,0)}}
+  if(p.y<=R){const w=valid?last:(last==='p'?'c':'p');point(w)}
+}
+
+// input
+const rc=new THREE.Raycaster(),pl=new THREE.Plane(new THREE.Vector3(0,0,1),-PZ),hv=new THREE.Vector3(),nd=new THREE.Vector2();
+function setT(e){const r=ren.domElement.getBoundingClientRect();nd.set(((e.clientX-r.left)/r.width)*2-1,-((e.clientY-r.top)/r.height)*2+1);
+  rc.setFromCamera(nd,cam);if(rc.ray.intersectPlane(pl,hv)){pad.tx=clamp(hv.x,-1.9,1.9);pad.ty=clamp(hv.y,.5,1.6)}}
+wrap.addEventListener('pointermove',setT);
+wrap.addEventListener('pointerdown',e=>{setT(e);
+  if(state==='serve'&&server==='p'){hit('p',0,0);state='play';setMsg('')}
+  else if(state==='over')resetGame()});
+document.querySelectorAll('.bar button').forEach(b=>{
+  b.addEventListener('pointerdown',e=>e.stopPropagation());
+  b.addEventListener('click',()=>{diff=b.dataset.d;document.querySelectorAll('.bar button').forEach(x=>x.classList.toggle('on',x===b));resetGame()})});
+
+// main loop
+let t0=performance.now();
+function tick(now){
+  requestAnimationFrame(tick);
+  const dt=Math.min(.033,(now-t0)/1000);t0=now;if(dt<=0)return;
+  const D=DF[diff],ox=pad.x,oy=pad.y,k=Math.min(1,dt*22);
+  pad.x+=(pad.tx-pad.x)*k;pad.y+=(pad.ty-pad.y)*k;
+  pad.vx=pad.vx*.7+((pad.x-ox)/dt)*.3;pad.vy=pad.vy*.7+((pad.y-oy)/dt)*.3;
+
+  let tracking=state==='play'&&last==='p'&&ball.v.z<0;
+  if(tracking){if(cpu.wait>0)cpu.wait-=dt;const pr=predict();cpu.tx=clamp(pr.x+cpu.ex,-1.4,1.4);cpu.ty=clamp(pr.y,.6,1.5)}
+  else{cpu.tx=0;cpu.ty=1.1}
+  if(!tracking||cpu.wait<=0){
+    cpu.x+=clamp(cpu.tx-cpu.x,-D.spd*dt,D.spd*dt);cpu.y+=clamp(cpu.ty-cpu.y,-D.spd*1.5*dt,D.spd*1.5*dt)}
+
+  if(state==='serve'){
+    if(server==='p')ball.p.set(pad.x,pad.y+.2,PZ-.15);
+    else{ball.p.set(cpu.x,cpu.y+.2,-PZ+.15);timer-=dt;if(timer<=0){hit('c',0,0);state='play';setMsg('')}}
+  }else if(state==='play'){
+    for(let i=0;i<6&&state==='play';i++)step(dt/6);
+  }else if(state==='point'){timer-=dt;if(timer<=0)setupServe()}
+
+  padP.position.set(pad.x,pad.y,PZ);padP.rotation.z=clamp(-pad.vx*.05,-.4,.4);
+  padC.position.set(cpu.x,cpu.y,-PZ);
+  cpuG.position.x+=(cpu.x*.7-cpuG.position.x)*.1;
+  ballM.position.copy(ball.p);
+  const onT=Math.abs(ball.p.x)<=HW&&Math.abs(ball.p.z)<=HL&&ball.p.y>TT;
+  blob.visible=onT;blob.position.set(ball.p.x,TT+.003,ball.p.z);
+  blob.material.opacity=clamp(.45-(ball.p.y-TT)*.35,.08,.45);
+  ren.render(scene,cam);
+}
+resetGame();requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>
